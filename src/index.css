@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,7 +8,8 @@
 @layer base {
   /* Default: Light Mode (Clean Corporate) */
   body { 
-    @apply bg-slate-50 text-slate-900 font-sans antialiased transition-colors duration-200; 
+    font-family: 'Montserrat', sans-serif;
+    @apply bg-slate-50 text-slate-900 antialiased transition-colors duration-200; 
   }
   
   /* Scrollbar Modern & Halus */
@@ -65,6 +67,83 @@
   .sidebar-link { @apply flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer; }
   .sidebar-link-active { @apply bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400; }
   .sidebar-link-inactive { @apply text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800/50; }
+
+  .podorukun-logo {
+    position: relative;
+    display: flex;
+    width: 35px;
+    height: 35px;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    color: #ef1423;
+    font-family: Georgia, serif;
+    font-size: 21px;
+    font-style: italic;
+    font-weight: 700;
+    line-height: 1;
+  }
+
+  .podorukun-logo span {
+    position: relative;
+    z-index: 1;
+    transform: translateX(3px);
+  }
+
+  .podorukun-sidebar-section {
+    @apply px-[34px] text-[13px] font-bold uppercase leading-4 text-[#747474];
+    letter-spacing: 0;
+  }
+
+  .podorukun-sidebar-link {
+    @apply flex min-h-[58px] w-full items-center gap-[27px] px-[34px] text-[15.5px] font-medium leading-5 text-[#6b6b6b] transition-colors duration-200;
+    letter-spacing: 0;
+  }
+
+  .podorukun-sidebar-link:hover {
+    background: #f7f7f7;
+    color: #B51318;
+  }
+
+  .podorukun-sidebar-link-active,
+  .podorukun-sidebar-link-active:hover {
+    min-height: 77px;
+    border-radius: 24px;
+    background: #f1f1f1;
+    color: #B51318;
+    font-weight: 700;
+  }
+
+  .podorukun-logout {
+    display: flex;
+    height: 92px;
+    width: 100%;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: space-between;
+    background: #B51318;
+    padding: 0 24px 0 34px;
+    color: #ffffff;
+    font-size: 15.5px;
+    font-weight: 600;
+    letter-spacing: 0;
+    transition: background 160ms ease;
+  }
+
+  .podorukun-logout:hover {
+    background: #b91118;
+  }
+
+  .podorukun-logout-icon {
+    display: flex;
+    width: 36px;
+    height: 36px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: #ffffff;
+    color: #B51318;
+  }
 }
 
 @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }

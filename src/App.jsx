@@ -1,3 +1,4 @@
+
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastContainer } from './components/ui';
@@ -34,7 +35,7 @@ function PublicRoute({ children }) {
   if (user) {
     if (user.role === 'customer') {
       // Jika nanti customer punya dashboard sendiri, ganti path ini (misal: to="/my-units")
-      return <Navigate to="/unauthorized" replace />; 
+      return <Navigate to="/unauthorized" replace />;
     }
     return <Navigate to="/" replace />;
   }
@@ -46,7 +47,7 @@ function AppRoutes() {
     <Routes>
       {/* Rute Publik */}
       <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-      
+
       {/* Rute Terproteksi (Admin & Super Admin) */}
       <Route path="/" element={<PrivateRoute roles={['super_admin','admin']}><AppLayout><DashboardPage /></AppLayout></PrivateRoute>} />
       <Route path="/companies" element={<PrivateRoute roles={['super_admin']}><AppLayout><CompaniesPage /></AppLayout></PrivateRoute>} />
@@ -57,11 +58,11 @@ function AppRoutes() {
       <Route path="/progress" element={<PrivateRoute roles={['super_admin','admin']}><AppLayout><ProgressPage /></AppLayout></PrivateRoute>} />
       <Route path="/documentation" element={<PrivateRoute roles={['super_admin','admin']}><AppLayout><DocumentationPage /></AppLayout></PrivateRoute>} />
       <Route path="/users" element={<PrivateRoute roles={['super_admin','admin']}><AppLayout><UsersPage /></AppLayout></PrivateRoute>} />
-      
+
       {/* Rute Error */}
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
       <Route path="/server-error" element={<ServerErrorPage />} />
-      
+
       {/* 404 Wildcard (Harus diletakkan paling bawah) */}
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

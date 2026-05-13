@@ -5,7 +5,7 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'Plus Jakarta Sans', 'sans-serif'], // Gunakan font yang clean
+        sans: ['Montserrat', 'sans-serif'], // Gunakan font yang clean
       }
     },
   },
