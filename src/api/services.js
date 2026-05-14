@@ -4,7 +4,7 @@ import api from './client';
 export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   register: (data) => api.post('/auth/register', data),
-  refresh: (refresh_token) => api.post('/auth/refresh', { refresh_token }),
+  refresh: (refreshToken) => api.post('/auth/refresh', { refreshToken }),
 };
 
 // USERS
@@ -70,12 +70,13 @@ export const progressAPI = {
 
 // DOCUMENTATION
 export const documentationAPI = {
-  list: (params) => api.get('/documentation', { params }),
-  upload: (formData) => api.post('/documentation', formData, {
+  list: (params) => api.get('/documentations', { params }),
+  upload: (formData, config = {}) => api.post('/documentations', formData, {
+    ...config,
     headers: { 'Content-Type': 'multipart/form-data' },
   }),
-  update: (id, data) => api.patch(`/documentation/${id}`, data),
-  delete: (id) => api.delete(`/documentation/${id}`),
+  update: (id, data) => api.patch(`/documentations/${id}`, data),
+  delete: (id) => api.delete(`/documentations/${id}`),
 };
 
 // DASHBOARD

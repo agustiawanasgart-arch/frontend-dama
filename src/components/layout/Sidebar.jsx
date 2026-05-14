@@ -100,19 +100,17 @@ export default function Sidebar() {
     navigate("/login");
   };
 
-  const visibleNavItems = navItems.filter((item) =>
-    isRole(...item.roles)
-  );
+  const visibleNavItems = navItems.filter((item) => isRole(...item.roles));
 
   const visibleSettingsItems = settingsItems.filter((item) =>
-    isRole(...item.roles)
+    isRole(...item.roles),
   );
 
   const isItemActive = (item) =>
     item.match.some((path) =>
       path === "/"
         ? location.pathname === "/"
-        : location.pathname.startsWith(path)
+        : location.pathname.startsWith(path),
     );
 
   const renderNavItems = (items) =>
@@ -163,9 +161,7 @@ export default function Sidebar() {
       {/* NAVIGATION */}
       <nav className="flex-1 overflow-y-auto pb-6">
         <div className="mb-8">
-          <p className="podorukun-sidebar-section">
-            Menu
-          </p>
+          <p className="podorukun-sidebar-section">Menu</p>
 
           <div className="mt-5 space-y-3">
             {renderNavItems(visibleNavItems)}
@@ -173,9 +169,7 @@ export default function Sidebar() {
         </div>
 
         <div>
-          <p className="podorukun-sidebar-section">
-            Pengaturan
-          </p>
+          <p className="podorukun-sidebar-section">Pengaturan</p>
 
           <div className="mt-5 space-y-3">
             {renderNavItems(visibleSettingsItems)}
@@ -184,17 +178,11 @@ export default function Sidebar() {
       </nav>
 
       {/* LOGOUT */}
-      <button
-        onClick={handleLogout}
-        className="podorukun-logout"
-      >
+      <button onClick={handleLogout} className="podorukun-logout">
         <span>Keluar</span>
 
         <span className="podorukun-logout-icon">
-          <LogOut
-            className="h-5 w-5"
-            strokeWidth={2.3}
-          />
+          <LogOut className="h-5 w-5" strokeWidth={2.3} />
         </span>
       </button>
     </div>
@@ -207,11 +195,7 @@ export default function Sidebar() {
         className="fixed right-4 top-4 z-[60] rounded-xl border border-slate-200 bg-white p-2.5 text-slate-700 shadow-sm lg:hidden"
         onClick={() => setOpen(!open)}
       >
-        {open ? (
-          <X className="h-5 w-5" />
-        ) : (
-          <Menu className="h-5 w-5" />
-        )}
+        {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
       </button>
 
       {/* OVERLAY */}
@@ -225,9 +209,7 @@ export default function Sidebar() {
       {/* MOBILE SIDEBAR */}
       <aside
         className={`fixed left-0 top-0 z-50 h-full w-[290px] transform overflow-hidden bg-white shadow-2xl shadow-slate-950/10 transition-transform duration-300 ease-in-out lg:hidden ${
-          open
-            ? "translate-x-0"
-            : "-translate-x-full"
+          open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {renderSidebarContent()}

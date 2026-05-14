@@ -129,7 +129,7 @@ export default function DashboardPage() {
         </h1>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
           Selamat datang kembali,{" "}
-          <span className="font-semibold">{user?.nama}</span>
+          <span className="font-semibold">{user?.nama ?? user?.name}</span>
         </p>
       </div>
 

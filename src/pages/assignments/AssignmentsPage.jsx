@@ -110,7 +110,7 @@ export default function AssignmentsPage() {
         const allAssignments = allAssignRes.data.data || [];
         // Kumpulkan ID unit yang status assignment-nya tidak dicancel (berarti sedang aktif dimiliki)
         const assignedUnitIds = allAssignments
-          .filter(a => a.status_kepemilikan !== 'cancelled')
+          .filter(a => a.status_kepemilikan === 'active')
           .map(a => a.unit?.id);
 
         const allUnits = unitsRes.data.data || [];
@@ -466,8 +466,7 @@ export default function AssignmentsPage() {
                   }
                 >
                   <option value="active">Active</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="completed">Completed</option>
+                  <option value="inactive">Inactive</option>
                 </select>
               </div>
             )}

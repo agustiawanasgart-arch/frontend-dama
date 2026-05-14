@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { projectsAPI } from '../../api/services';
+import { companiesAPI, projectsAPI } from '../../api/services';
 import { PageLoader, EmptyState, SearchInput, Modal, Confirm } from '../../components/ui';
 import { useToast } from '../../hooks/useToast';
 import { getStatusColor, getStatusLabel, formatDate, extractError } from '../../utils/helpers';
@@ -9,15 +9,17 @@ import { FolderKanban, Plus, Pencil, Trash2, MapPin, Calendar } from 'lucide-rea
 const EMPTY_FORM = { nama_proyek: '', lokasi: '', deskripsi: '', status: 'active' };
 
 export default function ProjectsPage() {
-  const { isRole } = useAuth();
+  const { isRole, user } = useAuth();
   const { toast } = useToast();
   const [projects, setProjects] = useState([]);
+  const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState({ open: false, mode: 'create', data: null });
   const [confirm, setConfirm] = useState({ open: false, id: null });
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const needsCompanyPicker = isRole('super_admin') || (isRole('admin') && !user?.companyId);
 
 
 const load = async () => {
@@ -45,8 +47,15 @@ const load = async () => {
     };
 
     fetchProjects();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!needsCompanyPicker) return;
+    companiesAPI
+      .list()
+      .then((r) => setCompanies(r.data.data || []))
+      .catch((err) => toast(extractError(err), 'error'));
+  }, [needsCompanyPicker, toast]);
   
   const filtered = projects.filter(p =>
     p.nama_proyek?.toLowerCase().includes(search.toLowerCase()) ||
@@ -54,7 +63,10 @@ const load = async () => {
   );
 
   const openCreate = () => { 
-    setForm(EMPTY_FORM); 
+    setForm({
+      ...EMPTY_FORM,
+      company_id: user?.companyId || '',
+    }); 
     setModal({ open: true, mode: 'create' }); 
   };
   
@@ -159,6 +171,22 @@ const load = async () => {
             <label className="label">Nama Proyek</label>
             <input className="input" required value={form.nama_proyek} onChange={e => setForm(f => ({ ...f, nama_proyek: e.target.value }))} placeholder="Contoh: Grand Central 2026" />
           </div>
+          {needsCompanyPicker && (
+            <div className="space-y-1.5">
+              <label className="label">Perusahaan</label>
+              <select
+                className="input"
+                required
+                value={form.company_id || ''}
+                onChange={e => setForm(f => ({ ...f, company_id: e.target.value }))}
+              >
+                <option value="">Pilih perusahaan...</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.nama_pt}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <label className="label">Lokasi</label>

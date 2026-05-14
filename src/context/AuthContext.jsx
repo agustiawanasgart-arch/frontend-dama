@@ -1,43 +1,68 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { authAPI } from '../api/services';
 
 const AuthContext = createContext(null);
 
-export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const clearAuthStorage = () => {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+  localStorage.removeItem('user');
+};
 
-  useEffect(() => {
-    const stored = localStorage.getItem('user');
-    const token = localStorage.getItem('access_token');
-    if (stored && token) {
-      try { setUser(JSON.parse(stored)); } catch { localStorage.clear(); }
+const getInitialUser = () => {
+  const stored = localStorage.getItem('user');
+  const token = localStorage.getItem('accessToken');
+
+  if (!stored || !token) return null;
+
+  try {
+    return JSON.parse(stored);
+  } catch {
+    clearAuthStorage();
+    return null;
+  }
+};
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(getInitialUser);
+  const [loading] = useState(false);
+
+  const persistSession = (payload) => {
+    const accessToken = payload.accessToken ?? payload.access_token;
+    const refreshToken = payload.refreshToken ?? payload.refresh_token;
+    const normalizedUser = {
+      ...payload.user,
+      nama: payload.user?.nama ?? payload.user?.name,
+      name: payload.user?.name ?? payload.user?.nama,
+    };
+
+    if (!accessToken || !refreshToken || !payload.user) {
+      throw new Error('Invalid login response');
     }
-    setLoading(false);
-  }, []);
+
+    localStorage.setItem('accessToken', accessToken);
+    localStorage.setItem('refreshToken', refreshToken);
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.setItem('user', JSON.stringify(normalizedUser));
+    setUser(normalizedUser);
+    return normalizedUser;
+  };
 
   const login = useCallback(async (email, password) => {
     const { data } = await authAPI.login({ email, password });
-    const { user, access_token, refresh_token } = data.data;
-    localStorage.setItem('access_token', access_token);
-    localStorage.setItem('refresh_token', refresh_token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
-    return user;
+    return persistSession(data.data);
   }, []);
 
   const register = useCallback(async (formData) => {
     const { data } = await authAPI.register(formData);
-    const { user, access_token, refresh_token } = data.data;
-    localStorage.setItem('access_token', access_token);
-    localStorage.setItem('refresh_token', refresh_token);
-    localStorage.setItem('user', JSON.stringify(user));
-    setUser(user);
-    return user;
+    return persistSession(data.data);
   }, []);
 
   const logout = useCallback(() => {
-    localStorage.clear();
+    clearAuthStorage();
     setUser(null);
   }, []);
 
@@ -52,6 +77,7 @@ export function AuthProvider({ children }) {
   );
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const ctx = useContext(AuthContext);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
