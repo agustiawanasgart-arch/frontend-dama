@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   progressAPI,
   assignmentsAPI,
   timelinesAPI,
+  documentationAPI,
 } from "../../../api/services";
 import { PageLoader, Modal, ProgressBar } from "../../../components/ui";
 import { useToast } from "../../../hooks/useToast";
@@ -20,6 +21,10 @@ import {
   Calendar,
   CheckCircle,
   BarChart3,
+  ImagePlus,
+  X,
+  FileImage,
+  Trash2,
 } from "lucide-react";
 
 const EMPTY_BUILD_FORM = {
@@ -60,6 +65,14 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
   const [payForm, setPayForm] = useState(EMPTY_PAY_FORM);
   const [saving, setSaving] = useState(false);
 
+  // Dokumentasi (foto/file progress)
+  const [docFiles, setDocFiles] = useState([]); // File[] yang dipilih untuk diupload
+  const [docsMap, setDocsMap] = useState({}); // { progressId: [doc, ...] }
+  const fileInputRef = useRef(null);
+
+  // Lightbox
+  const [lightbox, setLightbox] = useState(null); // { url, type: 'image'|'video', name }
+
   // Kalkulasi Dana
   const isCashLunas = assignment?.pembayaran?.tipe === "cash_lunas";
   const hargaTotal = assignment?.pembayaran?.harga_total || 0;
@@ -79,13 +92,32 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
           timelinesAPI.list({ unitId: unit.id }),
         ]);
 
-        const filteredFisik = (rProg.data?.data || []).sort(
-          (x, y) =>
-            new Date(y.tanggal_update || y.tanggalUpdate) -
-            new Date(x.tanggal_update || x.tanggalUpdate),
-        );
+        const filteredFisik = (rProg.data?.data || [])
+          .filter((p) => String(p.unit_id || p.unitId) === String(unit.id))
+          .sort(
+            (x, y) =>
+              new Date(y.tanggal_update || y.tanggalUpdate) -
+              new Date(x.tanggal_update || x.tanggalUpdate),
+          );
 
         const unitTimelines = rTime.data?.data || [];
+
+        // Fetch docs for this unit and map by progress_id
+        let dMap = {};
+        try {
+          const rDocs = await documentationAPI.list({ unitId: unit.id });
+          const docs = rDocs.data?.data || [];
+          docs.forEach((d) => {
+            const pid = d.progressId || d.progress_id;
+            if (pid) {
+              if (!dMap[pid]) dMap[pid] = [];
+              dMap[pid].push(d);
+            }
+          });
+          setDocsMap(dMap);
+        } catch (err) {
+          // docs are optional, don't block progress
+        }
 
         // Fetch History Dana
         let fDana = [];
@@ -118,6 +150,7 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
           setFisikPct(Number(unit.progress_percentage || 0));
           setHistoryDana(fDana);
           setPayPct(Math.min(pPct, 100));
+          setDocsMap(dMap);
         }
       } catch (err) {
         if (isMounted) toast(extractError(err), "error");
@@ -155,59 +188,76 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
     setSaving(true);
     try {
       const payload = {
-        unit_id: unit.id, // backend progress schema expects snake_case!
+        unit_id: unit.id,
         tahap: buildForm.tahap,
         progress_percentage: Number(buildForm.progress_percentage),
-        tanggal_update: buildForm.tanggal_update, // Format "YYYY-MM-DD" matches backend "date" format
+        tanggal_update: buildForm.tanggal_update,
         catatan: buildForm.catatan,
       };
 
+      let savedProgressId = buildModal.editId;
       if (buildModal.mode === "create") {
-        await progressAPI.create(payload);
+        const res = await progressAPI.create(payload);
+        savedProgressId = res.data?.data?.id || res.data?.id;
         toast("Progress bangunan ditambahkan!", "success");
       } else {
         await progressAPI.update(buildModal.editId, payload);
         toast("Data progress diperbarui!", "success");
       }
 
-      // Auto update timeline status
-      const timeline = timelines.find((t) => t.taskName === payload.tahap);
-      if (timeline) {
-        // Calculate total progress for this specific tahap
-        const otherFisikForTahap = historyFisik.filter(
-          (p) =>
-            p.tahap === payload.tahap &&
-            String(p.id || p.progress_id) !== String(buildModal.editId),
-        );
-        const totalForTahap =
-          otherFisikForTahap.reduce(
-            (acc, curr) =>
-              acc +
-              Number(curr.progress_percentage || curr.progressPercentage || 0),
-            0,
-          ) + payload.progressPercentage;
-
-        let newStatus = timeline.status;
-        if (totalForTahap >= 100) newStatus = "completed";
-        else if (totalForTahap > 0) newStatus = "on_progress";
-
-        if (newStatus !== timeline.status) {
-          await timelinesAPI.update(timeline.id, { status: newStatus });
+      // Upload dokumentasi jika ada file yang dipilih
+      if (docFiles.length > 0 && savedProgressId) {
+        for (const file of docFiles) {
+          const fd = new FormData();
+          fd.append("file", file);
+          fd.append("unitId", unit.id);
+          fd.append("progressId", savedProgressId);
+          // Gunakan nilai valid enum doc_type: foto | video | dokumen | foto_360
+          let jenis = "dokumen";
+          if (file.type.startsWith("video/")) jenis = "video";
+          else if (file.type.startsWith("image/")) jenis = "foto";
+          fd.append("jenis", jenis);
+          try {
+            await documentationAPI.upload(fd);
+          } catch (docErr) {
+            toast(`Gagal upload ${file.name}: ${extractError(docErr)}`, "error");
+          }
         }
+        toast(`${docFiles.length} media berhasil diunggah`, "success");
       }
 
-      setBuildModal({
-        open: false,
-        mode: "view",
-        editId: null,
-        originalPct: 0,
-      });
+      // Timeline status auto-updates are now handled completely by the backend.
+
+      setBuildModal({ open: false, mode: "view", editId: null, originalPct: 0 });
+      setDocFiles([]);
       setRefreshKey((prev) => prev + 1);
-      if (onUpdate) onUpdate(); // Update progress bar di panel atas
+      if (onUpdate) onUpdate();
     } catch (err) {
       toast(extractError(err), "error");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // --- Handler Delete Dokumentasi ---
+  const handleDeleteDoc = async (docId) => {
+    try {
+      await documentationAPI.delete(docId);
+      toast("Dokumen dihapus", "success");
+      // Refresh docsMap
+      const rDocs = await documentationAPI.list({ unitId: unit.id });
+      const docs = rDocs.data?.data || [];
+      const dMap = {};
+      docs.forEach((d) => {
+        const pid = d.progressId || d.progress_id;
+        if (pid) {
+          if (!dMap[pid]) dMap[pid] = [];
+          dMap[pid].push(d);
+        }
+      });
+      setDocsMap(dMap);
+    } catch (err) {
+      toast(extractError(err), "error");
     }
   };
 
@@ -246,9 +296,16 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
 
   if (loading) return <PageLoader />;
 
-  const basePctExcludingEdit =
-    fisikPct - (buildModal.mode === "edit" ? buildModal.originalPct : 0);
-  const maxSisa = Math.max(0, 100 - basePctExcludingEdit);
+  const selectedTahap = buildForm.tahap;
+  const otherFisikForSelectedTahap = historyFisik.filter(
+    (p) => p.tahap === selectedTahap &&
+           (buildModal.mode === "edit" ? String(p.id || p.progress_id) !== String(buildModal.editId) : true)
+  );
+  const baseTahapPctExcludingEdit = otherFisikForSelectedTahap.reduce(
+    (acc, curr) => acc + Number(curr.progress_percentage || curr.progressPercentage || 0),
+    0
+  );
+  const maxSisa = selectedTahap ? Math.max(0, 100 - baseTahapPctExcludingEdit) : 100;
 
   return (
     <div className="space-y-6">
@@ -318,6 +375,60 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
                           {p.catatan}
                         </p>
                       )}
+                      {/* Dokumentasi foto terlampir */}
+                      {(() => {
+                        const pid = p.id || p.progress_id;
+                        const docs = docsMap[pid] || [];
+                        if (docs.length === 0) return null;
+                        return (
+                          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-700">
+                            <p className="text-xs text-slate-400 mb-1.5 flex items-center gap-1">
+                              <FileImage className="w-3 h-3" /> {docs.length} Foto/Dokumen
+                            </p>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {docs.map((d) => {
+                                const url = d.url || d.fileUrl;
+                                const isVideo = d.jenis === 'video' || url?.match(/\.(mp4|webm|mov|avi)$/i);
+                                // Cek jenis='foto' ATAU ekstensi gambar di URL
+                                const isImage = !isVideo && (d.jenis === 'foto' || d.jenis === 'foto_360' || url?.match(/\.(jpg|jpeg|png|gif|webp)$/i));
+                                return (
+                                  <div key={d.id} className="relative group/media">
+                                    <button
+                                      type="button"
+                                      onClick={() => setLightbox({ url, type: isVideo ? 'video' : isImage ? 'image' : 'file', name: d.nama_file || d.namaFile })}
+                                      className="block w-full aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 hover:ring-2 hover:ring-indigo-400 transition-all"
+                                      title={d.nama_file || d.namaFile}
+                                    >
+                                      {isImage ? (
+                                        <img src={url} alt={d.nama_file} className="w-full h-full object-cover" />
+                                      ) : isVideo ? (
+                                        <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center gap-1">
+                                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                                          <span className="text-[10px] text-slate-300">VIDEO</span>
+                                        </div>
+                                      ) : (
+                                        <div className="w-full h-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                                          <FileImage className="w-6 h-6 text-slate-400" />
+                                        </div>
+                                      )}
+                                    </button>
+                                    {isRole("admin", "super_admin") && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeleteDoc(d.id)}
+                                        className="absolute top-1 right-1 w-5 h-5 bg-rose-500 text-white rounded-full opacity-0 group-hover/media:opacity-100 transition-opacity flex items-center justify-center"
+                                        title="Hapus"
+                                      >
+                                        <X className="w-3 h-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })
@@ -454,22 +565,30 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
       {/* MODAL FISIK */}
       <Modal
         open={buildModal.open}
-        onClose={() => setBuildModal({ open: false, mode: "view" })}
+        onClose={() => {
+          setBuildModal({ open: false, mode: "view" });
+          setDocFiles([]);
+        }}
         title={`Fisik: Unit ${unit.nomor_unit}`}
       >
         <form onSubmit={handleSaveBuild} className="space-y-4">
           <div className="bg-indigo-50 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-300 p-3 rounded-lg text-sm border border-indigo-200 dark:border-indigo-800/50">
             {buildModal.mode === "edit" ? (
               <>
-                Tahap lain sudah menyumbang{" "}
-                <strong>{basePctExcludingEdit}%</strong>. Nilai tahap ini dapat
+                Tahap ini sudah memiliki progress{" "}
+                <strong>{baseTahapPctExcludingEdit}%</strong>. Nilai entri ini dapat
                 diubah antara <strong>0% — {maxSisa}%</strong>.
               </>
             ) : (
               <>
-                Pembangunan sudah mencapai <strong>{fisikPct}%</strong>. Anda
-                dapat menambah hingga <strong>{maxSisa}%</strong> pada tahap
-                baru ini.
+                {selectedTahap ? (
+                  <>
+                    Tahap <strong>{selectedTahap}</strong> sudah mencapai <strong>{baseTahapPctExcludingEdit}%</strong>. Anda
+                    dapat menambah hingga <strong>{maxSisa}%</strong> pada tahap ini.
+                  </>
+                ) : (
+                  <>Silakan pilih tahap pembangunan terlebih dahulu.</>
+                )}
               </>
             )}
           </div>
@@ -480,9 +599,10 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
               className="input"
               required
               value={buildForm.tahap}
-              onChange={(e) =>
-                setBuildForm((f) => ({ ...f, tahap: e.target.value }))
-              }
+              onChange={(e) => {
+                const newTahap = e.target.value;
+                setBuildForm((f) => ({ ...f, tahap: newTahap, progress_percentage: 0 }));
+              }}
             >
               <option value="">-- Pilih Timeline --</option>
               {timelines.map((t) => (
@@ -548,6 +668,109 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
               }
               placeholder="Opsional"
             />
+          </div>
+
+          {/* UPLOAD & KELOLA DOKUMENTASI */}
+          <div className="space-y-2">
+            <label className="label flex items-center gap-2">
+              <FileImage className="w-4 h-4 text-indigo-500" />
+              Foto / Video Lapangan{" "}
+              <span className="text-slate-400 font-normal text-xs">(opsional, bisa multiple)</span>
+            </label>
+
+            {/* Existing docs in edit mode */}
+            {buildModal.mode === "edit" && (() => {
+              const existingDocs = docsMap[buildModal.editId] || [];
+              if (existingDocs.length === 0) return (
+                <p className="text-xs text-slate-400 italic">Belum ada foto/video terlampir.</p>
+              );
+              return (
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {existingDocs.map((d) => {
+                    const url = d.url || d.fileUrl;
+                    const isVideo = d.jenis === 'video' || url?.match(/\.(mp4|webm|mov|avi)$/i);
+                    const isImage = !isVideo && url?.match(/\.(jpg|jpeg|png|gif|webp)$/i);
+                    return (
+                      <div key={d.id} className="relative group/doc">
+                        <button
+                          type="button"
+                          onClick={() => setLightbox({ url, type: isVideo ? 'video' : isImage ? 'image' : 'file', name: d.nama_file || d.namaFile })}
+                          className="block w-full aspect-square rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600 hover:ring-2 hover:ring-indigo-400 transition-all"
+                        >
+                          {isImage ? (
+                            <img src={url} alt={d.nama_file} className="w-full h-full object-cover" />
+                          ) : isVideo ? (
+                            <div className="w-full h-full bg-slate-800 flex flex-col items-center justify-center gap-1">
+                              <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                              <span className="text-[10px] text-slate-300">VIDEO</span>
+                            </div>
+                          ) : (
+                            <div className="w-full h-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center">
+                              <FileImage className="w-6 h-6 text-slate-400" />
+                            </div>
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteDoc(d.id)}
+                          className="absolute top-1 right-1 w-5 h-5 bg-rose-500 text-white rounded-full opacity-0 group-hover/doc:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Hapus"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            <div
+              className="border-2 border-dashed border-slate-200 dark:border-slate-600 rounded-xl p-4 text-center hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors cursor-pointer"
+              onClick={() => fileInputRef.current?.click()}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const dropped = Array.from(e.dataTransfer.files);
+                setDocFiles((prev) => [...prev, ...dropped]);
+              }}
+            >
+              <ImagePlus className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-sm text-slate-500">Klik atau drag & drop foto/video di sini</p>
+              <p className="text-xs text-slate-400 mt-0.5">JPG, PNG, MP4, MOV, PDF...</p>
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,video/*,application/pdf"
+              className="hidden"
+              onChange={(e) => {
+                const selected = Array.from(e.target.files);
+                setDocFiles((prev) => [...prev, ...selected]);
+                e.target.value = "";
+              }}
+            />
+            {docFiles.length > 0 && (
+              <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                {docFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/20 px-3 py-2 rounded-lg border border-indigo-100 dark:border-indigo-800">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <FileImage className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <span className="text-xs text-slate-700 dark:text-slate-300 truncate">{file.name}</span>
+                      <span className="text-xs text-slate-400 shrink-0">({(file.size / 1024).toFixed(0)} KB)</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="ml-2 text-slate-400 hover:text-rose-500 transition-colors shrink-0"
+                      onClick={() => setDocFiles((prev) => prev.filter((_, i) => i !== idx))}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end pt-3">
@@ -626,6 +849,52 @@ export default function ProgressTab({ unit, assignment, onUpdate }) {
           </div>
         </form>
       </Modal>
+
+      {/* LIGHTBOX */}
+      {lightbox && (
+        <div
+          className="fixed inset-0 z-[9999] bg-black/90 flex flex-col items-center justify-center p-4"
+          onClick={() => setLightbox(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white/80 hover:text-white"
+            onClick={() => setLightbox(null)}
+          >
+            <X className="w-8 h-8" />
+          </button>
+          <p className="text-white/60 text-sm mb-4 max-w-lg text-center truncate">{lightbox.name}</p>
+          {lightbox.type === 'image' ? (
+            <img
+              src={lightbox.url}
+              alt={lightbox.name}
+              className="max-w-full max-h-[80vh] rounded-xl object-contain shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : lightbox.type === 'video' ? (
+            <video
+              src={lightbox.url}
+              controls
+              autoPlay
+              className="max-w-full max-h-[80vh] rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <FileImage className="w-20 h-20 text-white/30" />
+              <a
+                href={lightbox.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-6 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                Buka File
+              </a>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
+
