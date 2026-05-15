@@ -83,3 +83,30 @@ export const documentationAPI = {
 export const dashboardAPI = {
   stats: () => api.get('/dashboard/stats'),
 };
+
+// TIMELINES
+export const timelinesAPI = {
+  list: (params) => api.get('/timelines', { params }),
+  get: (id) => api.get(`/timelines/${id}`),
+  create: (data) => api.post('/timelines', data),
+  update: (id, data) => api.patch(`/timelines/${id}`, data),
+  delete: (id) => api.delete(`/timelines/${id}`),
+};
+
+// HANDOVERS
+export const handoversAPI = {
+  list: (params) => api.get('/handovers', { params }),
+  get: (id) => api.get(`/handovers/${id}`),
+  create: (data) => api.post('/handovers', data),
+  update: (id, data) => api.patch(`/handovers/${id}`, data),
+  delete: (id) => api.delete(`/handovers/${id}`),
+};
+
+// RETENTIONS
+export const retentionsAPI = {
+  list: (params) => api.get('/retentions', { params }),
+  get: (id) => api.get(`/retentions/${id}`),
+  create: (data) => api.post('/retentions', data),
+  update: (id, data) => api.patch(`/retentions/${id}`, data),
+  delete: (id) => api.delete(`/retentions/${id}`),
+};
